@@ -28,6 +28,17 @@ cd gtja-report-processor
 pip install -r requirements.txt
 ```
 
+3. Setup configuration:
+```bash
+python setup_config.py
+```
+
+4. Edit the `config.py` file with your credentials:
+   - Gmail account and app password
+   - Google Gemini API key
+   - Default recipient email
+   - Default watermark text
+
 ## Usage
 
 1. Run the application:

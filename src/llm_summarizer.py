@@ -10,8 +10,14 @@ import os
 class LLMSummarizer:
     def __init__(self):
         """Initialize the LLM summarizer with Google Gemini API."""
-        # Google Gemini API key
-        self.api_key = "AIzaSyA863TRkGL-EqD2tC6hihhoh7CRMvttl3Y"
+        # Load API key from config
+        try:
+            from config import GEMINI_API_KEY
+            self.api_key = GEMINI_API_KEY
+        except ImportError:
+            print("❌ 错误: 找不到配置文件 config.py")
+            print("💡 请复制 config_template.py 为 config.py 并填入您的API密钥")
+            raise Exception("配置文件缺失")
         
         # Initialize Gemini client
         self.gemini_available = False

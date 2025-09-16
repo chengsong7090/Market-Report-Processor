@@ -24,10 +24,19 @@ class GTJAReportProcessor:
         
         # Variables
         self.pdf_path = tk.StringVar()
-        self.watermark_text = tk.StringVar(value="For the exclusive use of DAPHNE.WOO@GTJAS.COM.HK")
+        
+        # Load default values from config
+        try:
+            from config import DEFAULT_WATERMARK_TEXT, DEFAULT_RECIPIENT_EMAIL
+            self.watermark_text = tk.StringVar(value=DEFAULT_WATERMARK_TEXT)
+            self.email_recipient = tk.StringVar()
+        except ImportError:
+            # Fallback defaults if config not available
+            self.watermark_text = tk.StringVar(value="For the exclusive use of DAPHNE.WOO@GTJAS.COM.HK")
+            self.email_recipient = tk.StringVar()
+        
         self.output_path = tk.StringVar()
         self.summarize_pdf = tk.BooleanVar(value=True)
-        self.email_recipient = tk.StringVar()
         
         self.setup_ui()
         
@@ -80,7 +89,13 @@ class GTJAReportProcessor:
         ttk.Label(email_frame, text="Recipient Email:").grid(row=0, column=0, sticky=tk.W, pady=5)
         self.email_entry = ttk.Entry(email_frame, textvariable=self.email_recipient, width=40)
         self.email_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(10, 0), pady=5)
-        self.email_entry.insert(0, "charles.song@gtjas.com.hk")  # Default recipient
+        
+        # Set default recipient from config
+        try:
+            from config import DEFAULT_RECIPIENT_EMAIL
+            self.email_entry.insert(0, DEFAULT_RECIPIENT_EMAIL)
+        except ImportError:
+            self.email_entry.insert(0, "charles.song@gtjas.com.hk")  # Fallback default
         
         # Process Button
         self.process_button = ttk.Button(main_frame, text="Process PDF", 
@@ -161,7 +176,7 @@ class GTJAReportProcessor:
         """Process PDF in separate thread."""
         try:
             # Initialize processor
-            pdf_processor = PDFProcessor()
+        pdf_processor = PDFProcessor()
             summary_text = ""
             
             # Summarize PDF if requested
@@ -169,7 +184,7 @@ class GTJAReportProcessor:
                 summary_text = self._summarize_pdf_content(pdf_processor)
             
             # Remove watermark
-            clean_pdf_path = pdf_processor.remove_watermark(
+        clean_pdf_path = pdf_processor.remove_watermark(
                 self.pdf_path.get(),
                 self.watermark_text.get()
             )
@@ -263,7 +278,7 @@ class GTJAReportProcessor:
                 print("❌ 邮件发送失败！")
                 return False
         
-        except Exception as e:
+    except Exception as e:
             print(f"❌ 邮件发送过程中出现错误: {str(e)}")
             return False
             

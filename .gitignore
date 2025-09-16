@@ -73,3 +73,6 @@ Thumbs.db
 temp/
 output/
 clean_pdf_*
+
+# Configuration files with sensitive data
+config.py

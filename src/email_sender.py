@@ -20,10 +20,16 @@ class EmailSender:
         self.smtp_server = "smtp.gmail.com"
         self.smtp_port = 587
         
-        # Email credentials
-        self.email_sender_account = "chengsong0810@gmail.com"
-        self.email_sender_username = "chengsong0810"
-        self.email_sender_password = "rnilxkkfipegubmv"
+        # Load email credentials from config
+        try:
+            from config import EMAIL_SENDER_ACCOUNT, EMAIL_SENDER_USERNAME, EMAIL_SENDER_PASSWORD
+            self.email_sender_account = EMAIL_SENDER_ACCOUNT
+            self.email_sender_username = EMAIL_SENDER_USERNAME
+            self.email_sender_password = EMAIL_SENDER_PASSWORD
+        except ImportError:
+            print("❌ 错误: 找不到配置文件 config.py")
+            print("💡 请复制 config_template.py 为 config.py 并填入您的邮箱凭据")
+            raise Exception("配置文件缺失")
     
     def send_pdf_summary_email(self, recipient_email, pdf_path, summary_text, original_filename):
         """
