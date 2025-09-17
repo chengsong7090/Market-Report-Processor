@@ -15,4 +15,3 @@ GEMINI_API_KEY = "your-gemini-api-key"
 
 # Default Settings
 DEFAULT_RECIPIENT_EMAIL = "charles.song@gtjas.com.hk"
-DEFAULT_WATERMARK_TEXT = "For the exclusive use of DAPHNE.WOO@GTJAS.COM.HK"

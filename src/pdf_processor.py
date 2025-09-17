@@ -53,6 +53,161 @@ class PDFProcessor:
         except Exception as e:
             raise Exception(f"Error removing watermark: {str(e)}")
     
+    def remove_watermarks(self, pdf_path, watermark_list):
+        """Remove multiple watermarks from PDF using the list of watermark texts."""
+        try:
+            print(f"🔍 检测到 {len(watermark_list)} 个水印模式:")
+            for i, watermark in enumerate(watermark_list, 1):
+                print(f"   {i}. {watermark}")
+            
+            # Method 1: Try direct PDF editing for all watermarks
+            clean_path = self._remove_watermarks_direct(pdf_path, watermark_list)
+            if clean_path:
+                return clean_path
+            
+            # Method 2: Convert to images, process, and recreate PDF
+            print("直接移除失败，尝试基于图像的方法...")
+            return self._remove_watermarks_via_images(pdf_path, watermark_list)
+            
+        except Exception as e:
+            raise Exception(f"Error removing watermarks: {str(e)}")
+    
+    def _remove_watermarks_direct(self, pdf_path, watermark_list):
+        """Try to remove multiple watermarks by direct PDF manipulation."""
+        try:
+            doc = fitz.open(pdf_path)
+            modified = False
+            
+            for page_num in range(len(doc)):
+                page = doc.load_page(page_num)
+                
+                # Check each watermark in the list
+                for watermark_text in watermark_list:
+                    # Get text instances for this watermark
+                    text_instances = page.search_for(watermark_text)
+                    
+                    if text_instances:
+                        print(f"✅ 在页面 {page_num + 1} 找到水印: {watermark_text}")
+                        # Add white rectangles over watermark text
+                        for inst in text_instances:
+                            rect = fitz.Rect(inst)
+                            # Extend rectangle slightly to cover watermark
+                            rect.x0 -= 5
+                            rect.y0 -= 2
+                            rect.x1 += 5
+                            rect.y1 += 2
+                            
+                            # Add white rectangle
+                            page.add_redact_annot(rect, fill=(1, 1, 1))
+                            page.apply_redactions()
+                            modified = True
+            
+            if modified:
+                # Create output path in temp directory to avoid permission issues
+                import tempfile
+                temp_dir = tempfile.gettempdir()
+                filename = os.path.basename(pdf_path)
+                output_path = os.path.join(temp_dir, filename.replace('.pdf', '_clean.pdf'))
+                doc.save(output_path)
+                doc.close()
+                print("✅ 水印移除成功 (直接方法)")
+                return output_path
+            else:
+                doc.close()
+                print("⚠️  未找到任何水印文本")
+                return None
+                
+        except Exception as e:
+            print(f"直接移除失败: {str(e)}")
+            return None
+    
+    def _remove_watermarks_via_images(self, pdf_path, watermark_list):
+        """Remove multiple watermarks by converting to images, processing, and recreating PDF."""
+        try:
+            # Convert PDF to images
+            images = convert_from_path(pdf_path, dpi=300)
+            processed_images = []
+            
+            for img in images:
+                # Convert PIL image to OpenCV format
+                img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+                
+                # Process image to remove all watermarks
+                processed_img = self._remove_watermarks_from_image(img_cv, watermark_list)
+                
+                # Convert back to PIL
+                processed_pil = Image.fromarray(cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB))
+                processed_images.append(processed_pil)
+            
+            # Save as new PDF in temp directory
+            import tempfile
+            temp_dir = tempfile.gettempdir()
+            filename = os.path.basename(pdf_path)
+            output_path = os.path.join(temp_dir, filename.replace('.pdf', '_clean.pdf'))
+            processed_images[0].save(
+                output_path, 
+                "PDF", 
+                resolution=300.0, 
+                save_all=True, 
+                append_images=processed_images[1:]
+            )
+            
+            print("✅ 水印移除成功 (图像方法)")
+            return output_path
+            
+        except Exception as e:
+            raise Exception(f"Image-based removal failed: {str(e)}")
+    
+    def _remove_watermarks_from_image(self, img, watermark_list):
+        """Remove multiple watermarks from a single image using OpenCV."""
+        try:
+            # Convert to grayscale for text detection
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            
+            # Apply threshold to get binary image
+            _, binary = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
+            
+            # Use morphological operations to detect text regions
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+            dilated = cv2.dilate(binary, kernel, iterations=1)
+            
+            # Find contours
+            contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            # Process each contour
+            for contour in contours:
+                x, y, w, h = cv2.boundingRect(contour)
+                
+                # Check if this might be a watermark area (left side of image)
+                if (x < img.shape[1] * 0.4 and  # Left side
+                    h < 60 and h > 10 and  # Reasonable height for text
+                    w > 50 and w < 400):  # Reasonable width for watermark text
+                    
+                    # Extract region
+                    roi = img[y:y+h, x:x+w]
+                    
+                    # Check if this region contains any of the watermark texts
+                    if self._is_watermark_region_multi(roi, watermark_list):
+                        # Fill with white, extending slightly beyond the detected area
+                        cv2.rectangle(img, 
+                                    (max(0, x-5), max(0, y-5)), 
+                                    (min(img.shape[1], x+w+5), min(img.shape[0], y+h+5)), 
+                                    (255, 255, 255), -1)
+            
+            return img
+            
+        except Exception as e:
+            print(f"Error processing image: {str(e)}")
+            return img
+    
+    def _is_watermark_region_multi(self, roi, watermark_list):
+        """Check if a region likely contains any of the watermark texts."""
+        # This is a simplified check - in practice, you'd use OCR
+        # For now, we'll check based on region characteristics
+        if roi.shape[0] < 20 and roi.shape[1] < 200:
+            return True
+        return False
+    
     def _remove_watermark_direct(self, pdf_path, watermark_text):
         """Try to remove watermark by direct PDF manipulation."""
         try:

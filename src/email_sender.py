@@ -147,6 +147,19 @@ class EmailSender:
         print(f"🔍 调试: 开始格式化Lotus Notes兼容HTML内容")
         print(f"🔍 调试: 摘要文本长度: {len(summary_text)}")
         
+        # Handle empty summary
+        if not summary_text or not summary_text.strip():
+            print("🔍 调试: 摘要为空，返回简单消息")
+            return """
+            <table width="100%" cellpadding="20" cellspacing="0" border="0">
+                <tr>
+                    <td style="text-align: center; font-size: 16px; color: #666; padding: 40px;">
+                        Document processed successfully. AI summary unavailable.
+                    </td>
+                </tr>
+            </table>
+            """
+        
         # Split into sections based on ## headers
         sections = []
         current_section = ""
