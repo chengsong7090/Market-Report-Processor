@@ -12,6 +12,7 @@ EMAIL_SENDER_PASSWORD = "your-app-password"
 
 # AI API Configuration
 GEMINI_API_KEY = "your-gemini-api-key"
+QWEN_API_KEY = "your-qwen-api-key"
 
 # Default Settings
 DEFAULT_RECIPIENT_EMAIL = "charles.song@gtjas.com.hk"

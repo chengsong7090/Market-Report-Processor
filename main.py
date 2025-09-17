@@ -232,18 +232,24 @@ class GTJAReportProcessor:
             # Initialize LLM summarizer
             summarizer = LLMSummarizer()
             
-            # Get AI summary
-            print("📝 正在使用Google Gemini进行智能分析...")
-            summary = summarizer.summarize_pdf_content(raw_text)
+            # Get AI summary (LLM will print which service it's using)
+            result = summarizer.summarize_pdf_content(raw_text)
             
-            # Display summary in terminal
-            print("\n" + "="*80)
-            print("📋 AI 智能总结 (Google Gemini)")
-            print("="*80)
-            print(summary)
-            print("="*80)
-            print("✅ 总结完成！")
-            print("="*80 + "\n")
+            # Handle tuple return (summary, llm_name)
+            if isinstance(result, tuple):
+                summary, llm_name = result
+            else:
+                summary, llm_name = result, "Unknown"
+            
+            # Display summary in terminal if available
+            if summary:
+                print("\n" + "="*80)
+                print(f"📋 AI 智能总结 ({llm_name})")
+                print("="*80)
+                print(summary)
+                print("="*80)
+                print("✅ 总结完成！")
+                print("="*80 + "\n")
             
             return summary
             
