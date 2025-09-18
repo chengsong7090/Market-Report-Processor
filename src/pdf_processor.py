@@ -161,6 +161,45 @@ class PDFProcessor:
     def _remove_watermarks_from_image(self, img, watermark_list):
         """Remove multiple watermarks from a single image using OpenCV."""
         try:
+            # First, try very conservative bottom margin cropping for image-based PDFs
+            processed_img = self._crop_bottom_margin_conservative(img)
+            
+            # Then try contour-based detection on remaining areas
+            processed_img = self._remove_watermarks_contour_based(processed_img, watermark_list)
+            
+            return processed_img
+            
+        except Exception as e:
+            print(f"Error processing image: {str(e)}")
+            return img
+    
+    def _crop_bottom_margin_conservative(self, img):
+        """Directly crop bottom margin where watermarks typically appear."""
+        try:
+            height, width = img.shape[:2]
+            
+            # For image-based PDFs, directly crop bottom 5% where watermarks usually are
+            # This is more aggressive but necessary for watermark removal
+            crop_percentage = 0.03  # Remove bottom 5% of the page
+            crop_amount = int(height * crop_percentage)
+            new_height = height - crop_amount
+            
+            # Only crop if the page is tall enough (avoid cropping very short pages)
+            if height > 1000:  # Only crop pages taller than 1000px
+                cropped_img = img[:new_height, :]
+                print(f"✅ 裁剪底部水印区域: 从 {height}px 裁剪到 {new_height}px (移除底部 {crop_percentage*100}%)")
+                return cropped_img
+            else:
+                print(f"⚠️ 页面高度 {height}px 太小，跳过裁剪")
+                return img
+                
+        except Exception as e:
+            print(f"⚠️ 底部裁剪失败: {e}")
+            return img
+    
+    def _remove_watermarks_contour_based(self, img, watermark_list):
+        """Remove watermarks using contour detection (original method)."""
+        try:
             # Convert to grayscale for text detection
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             
@@ -197,7 +236,7 @@ class PDFProcessor:
             return img
             
         except Exception as e:
-            print(f"Error processing image: {str(e)}")
+            print(f"Error in contour processing: {str(e)}")
             return img
     
     def _is_watermark_region_multi(self, roi, watermark_list):

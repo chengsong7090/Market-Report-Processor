@@ -14,21 +14,27 @@ import threading
 from src.pdf_processor import PDFProcessor
 from src.llm_summarizer import LLMSummarizer
 from src.email_sender import EmailSender
+from src.wechat_summarizer import WeChatSummarizer
 
 class GTJAReportProcessor:
     def __init__(self, root):
         self.root = root
         self.root.title("GTJA Report Processor")
-        self.root.geometry("600x550")
+        self.root.geometry("700x650")
         self.root.resizable(True, True)
         
-        # Variables
+        # Variables for single PDF processing
         self.pdf_path = tk.StringVar()
+        
+        # Variables for batch processing
+        self.folder_path = tk.StringVar()
         
         # Hardcoded watermark list - will remove any of these watermarks if found
         self.watermark_list = [
             "For the exclusive use of DAPHNE.WOO@GTJAS.COM.HK",
-            "本文件专供 Guotai Junan Investments (Hong Kong) Limited 的 Daisy Zhu 使用"
+            "本文件专供 Guotai Junan Investments (Hong Kong) Limited 的 Daisy Zhu 使用",
+            "􀀄􀀅􀀆􀀇􀀈􀀅􀀆􀀉􀀃􀀊􀀋􀀅􀀃􀀌􀀃􀀍􀀎􀀃􀀏􀀋􀀐􀀑􀀒􀀓􀀐􀀑􀀔􀀕􀀖􀀗􀀈􀀘􀀓􀀏􀀋􀀙􀀓􀀚􀀛",
+            "Prepared for - W: colin.li@gtjas.com.hk"
         ]
         
         # Load default values from config
@@ -45,9 +51,9 @@ class GTJAReportProcessor:
         self.setup_ui()
         
     def setup_ui(self):
-        """Setup the user interface."""
+        """Setup the tabbed user interface."""
         # Main frame
-        main_frame = ttk.Frame(self.root, padding="20")
+        main_frame = ttk.Frame(self.root, padding="10")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # Title
@@ -55,10 +61,30 @@ class GTJAReportProcessor:
                                font=("Arial", 16, "bold"))
         title_label.grid(row=0, column=0, columnspan=2, pady=(0, 20))
         
+        # Create notebook (tabbed interface)
+        self.notebook = ttk.Notebook(main_frame)
+        self.notebook.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=10)
+        
+        # Tab 1: Single PDF Processing
+        self.single_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.single_tab, text="Single PDF Processing")
+        self.setup_single_pdf_tab()
+        
+        # Tab 2: Batch Analysis
+        self.batch_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.batch_tab, text="Batch Analysis (WeChat)")
+        self.setup_batch_analysis_tab()
+        
+        # Configure grid weights
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.rowconfigure(1, weight=1)
+        
+    def setup_single_pdf_tab(self):
+        """Setup the single PDF processing tab."""
         # PDF File Selection
-        ttk.Label(main_frame, text="Select PDF File:").grid(row=1, column=0, sticky=tk.W, pady=5)
-        file_frame = ttk.Frame(main_frame)
-        file_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+        ttk.Label(self.single_tab, text="Select PDF File:").grid(row=0, column=0, sticky=tk.W, pady=5, padx=10)
+        file_frame = ttk.Frame(self.single_tab)
+        file_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5, padx=10)
         
         self.file_entry = ttk.Entry(file_frame, textvariable=self.pdf_path, width=50)
         self.file_entry.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 10))
@@ -66,14 +92,14 @@ class GTJAReportProcessor:
         ttk.Button(file_frame, text="Browse", command=self.browse_file).grid(row=0, column=1)
         
         # Watermark Info (read-only display)
-        watermark_info = ttk.Label(main_frame, text="Watermarks to remove: Pre-configured list (English & Chinese)", 
+        watermark_info = ttk.Label(self.single_tab, text="Watermarks to remove: Pre-configured list (English & Chinese)", 
                                  foreground="blue", font=("Arial", 9))
-        watermark_info.grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=(20, 5))
+        watermark_info.grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=(20, 5), padx=10)
         
         # Output Path
-        ttk.Label(main_frame, text="Output Path:").grid(row=4, column=0, sticky=tk.W, pady=(20, 5))
-        output_frame = ttk.Frame(main_frame)
-        output_frame.grid(row=5, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+        ttk.Label(self.single_tab, text="Output Path:").grid(row=3, column=0, sticky=tk.W, pady=(20, 5), padx=10)
+        output_frame = ttk.Frame(self.single_tab)
+        output_frame.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5, padx=10)
         
         self.output_entry = ttk.Entry(output_frame, textvariable=self.output_path, width=50)
         self.output_entry.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 10))
@@ -81,13 +107,13 @@ class GTJAReportProcessor:
         ttk.Button(output_frame, text="Browse", command=self.browse_output).grid(row=0, column=1)
         
         # Summarize PDF Checkbox
-        self.summarize_checkbox = ttk.Checkbutton(main_frame, text="Summarize PDF content with AI (Chinese)", 
+        self.summarize_checkbox = ttk.Checkbutton(self.single_tab, text="Summarize PDF content with AI (Chinese)", 
                                                 variable=self.summarize_pdf)
-        self.summarize_checkbox.grid(row=6, column=0, columnspan=2, pady=10, sticky=tk.W)
+        self.summarize_checkbox.grid(row=5, column=0, columnspan=2, pady=10, sticky=tk.W, padx=10)
         
         # Email Section
-        email_frame = ttk.LabelFrame(main_frame, text="📧 Email (Optional)", padding=10)
-        email_frame.grid(row=7, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10)
+        email_frame = ttk.LabelFrame(self.single_tab, text="📧 Email (Optional)", padding=10)
+        email_frame.grid(row=6, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10, padx=10)
         
         # Email Recipient
         ttk.Label(email_frame, text="Recipient Email:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -102,24 +128,79 @@ class GTJAReportProcessor:
             self.email_entry.insert(0, "charles.song@gtjas.com.hk")  # Fallback default
         
         # Process Button
-        self.process_button = ttk.Button(main_frame, text="Process PDF", 
+        self.process_button = ttk.Button(self.single_tab, text="Process PDF", 
                                        command=self.process_pdf, style="Accent.TButton")
-        self.process_button.grid(row=8, column=0, columnspan=2, pady=30)
+        self.process_button.grid(row=7, column=0, columnspan=2, pady=30, padx=10)
         
         # Progress Bar
-        self.progress = ttk.Progressbar(main_frame, mode='indeterminate', length=400)
-        self.progress.grid(row=9, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=15)
+        self.progress = ttk.Progressbar(self.single_tab, mode='indeterminate', length=400)
+        self.progress.grid(row=8, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=15, padx=10)
         
         # Status Label
-        self.status_label = ttk.Label(main_frame, text="Ready to process PDF", 
+        self.status_label = ttk.Label(self.single_tab, text="Ready to process PDF", 
                                      foreground="green")
-        self.status_label.grid(row=10, column=0, columnspan=2, pady=10)
+        self.status_label.grid(row=9, column=0, columnspan=2, pady=10, padx=10)
         
         # Configure grid weights
-        main_frame.columnconfigure(0, weight=1)
+        self.single_tab.columnconfigure(0, weight=1)
         file_frame.columnconfigure(0, weight=1)
         output_frame.columnconfigure(0, weight=1)
         email_frame.columnconfigure(1, weight=1)
+        
+    def setup_batch_analysis_tab(self):
+        """Setup the batch analysis tab for WeChat summaries."""
+        # Folder Selection
+        ttk.Label(self.batch_tab, text="Select Folder with PDFs:").grid(row=0, column=0, sticky=tk.W, pady=5, padx=10)
+        folder_frame = ttk.Frame(self.batch_tab)
+        folder_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5, padx=10)
+        
+        self.folder_entry = ttk.Entry(folder_frame, textvariable=self.folder_path, width=50)
+        self.folder_entry.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 10))
+        
+        ttk.Button(folder_frame, text="Browse", command=self.browse_folder).grid(row=0, column=1)
+        
+        # Info Label
+        info_text = ("Batch analysis for WeChat sharing:\n"
+                    "• Analyzes all PDFs in folder about one company\n"
+                    "• Generates 300-character Chinese summaries\n"
+                    "• Focuses on buy/sell recommendations and key data")
+        info_label = ttk.Label(self.batch_tab, text=info_text, 
+                              foreground="blue", font=("Arial", 9), justify=tk.LEFT)
+        info_label.grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=(20, 5), padx=10)
+        
+        # Analyze Button
+        self.batch_button = ttk.Button(self.batch_tab, text="Analyze PDFs", 
+                                     command=self.analyze_batch, style="Accent.TButton")
+        self.batch_button.grid(row=3, column=0, columnspan=2, pady=20, padx=10)
+        
+        # Progress Bar for batch
+        self.batch_progress = ttk.Progressbar(self.batch_tab, mode='indeterminate', length=400)
+        self.batch_progress.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10, padx=10)
+        
+        # Results Text Area
+        ttk.Label(self.batch_tab, text="Analysis Results:").grid(row=5, column=0, sticky=tk.W, pady=(20, 5), padx=10)
+        
+        # Text area with scrollbar
+        text_frame = ttk.Frame(self.batch_tab)
+        text_frame.grid(row=6, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5, padx=10)
+        
+        self.results_text = tk.Text(text_frame, height=15, width=70, wrap=tk.WORD, font=("Arial", 10))
+        scrollbar = ttk.Scrollbar(text_frame, orient=tk.VERTICAL, command=self.results_text.yview)
+        self.results_text.configure(yscrollcommand=scrollbar.set)
+        
+        self.results_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        
+        # Copy to Clipboard Button
+        ttk.Button(self.batch_tab, text="Copy to Clipboard", 
+                  command=self.copy_to_clipboard).grid(row=7, column=0, columnspan=2, pady=10, padx=10)
+        
+        # Configure grid weights
+        self.batch_tab.columnconfigure(0, weight=1)
+        self.batch_tab.rowconfigure(6, weight=1)
+        folder_frame.columnconfigure(0, weight=1)
+        text_frame.columnconfigure(0, weight=1)
+        text_frame.rowconfigure(0, weight=1)
         
     def browse_file(self):
         """Browse for PDF file."""
@@ -142,6 +223,45 @@ class GTJAReportProcessor:
         )
         if filename:
             self.output_path.set(filename)
+            
+    def browse_folder(self):
+        """Browse for folder containing PDFs."""
+        folder = filedialog.askdirectory(
+            title="Select Folder with PDFs"
+        )
+        if folder:
+            self.folder_path.set(folder)
+            
+    def analyze_batch(self):
+        """Analyze all PDFs in the selected folder."""
+        if not self.folder_path.get():
+            messagebox.showerror("Error", "Please select a folder containing PDFs.")
+            return
+            
+        if not os.path.exists(self.folder_path.get()):
+            messagebox.showerror("Error", "Selected folder does not exist.")
+            return
+            
+        # Clear previous results
+        self.results_text.delete(1.0, tk.END)
+        
+        # Start processing in separate thread
+        self.batch_button.config(state='disabled')
+        self.batch_progress.start()
+        
+        thread = threading.Thread(target=self._analyze_batch_thread)
+        thread.daemon = True
+        thread.start()
+        
+    def copy_to_clipboard(self):
+        """Copy results to clipboard."""
+        content = self.results_text.get(1.0, tk.END).strip()
+        if content:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(content)
+            messagebox.showinfo("Success", "Results copied to clipboard!")
+        else:
+            messagebox.showwarning("Warning", "No results to copy.")
             
     def process_pdf(self):
         """Process the PDF to remove watermark."""
@@ -258,6 +378,66 @@ class GTJAReportProcessor:
             print("💡 提示: 请检查网络连接和Google Gemini API密钥")
             return ""
     
+    def _analyze_batch_thread(self):
+        """Analyze batch of PDFs in separate thread."""
+        try:
+            folder_path = self.folder_path.get()
+            
+            # Find all PDF files in the folder
+            pdf_files = []
+            for file in os.listdir(folder_path):
+                if file.lower().endswith('.pdf'):
+                    pdf_files.append(os.path.join(folder_path, file))
+            
+            if not pdf_files:
+                self.root.after(0, lambda: messagebox.showwarning("Warning", "No PDF files found in the selected folder."))
+                return
+                
+            # Initialize the WeChat summarizer
+            wechat_summarizer = WeChatSummarizer()
+            
+            # Process each PDF
+            all_summaries = []
+            for i, pdf_path in enumerate(pdf_files):
+                try:
+                    # Update UI to show progress
+                    filename = os.path.basename(pdf_path)
+                    self.root.after(0, lambda f=filename: self.results_text.insert(tk.END, f"📄 正在分析: {f}\n"))
+                    
+                    # Extract text from PDF
+                    pdf_processor = PDFProcessor()
+                    raw_text = pdf_processor.extract_text(pdf_path)
+                    
+                    if raw_text.strip():
+                        # Generate WeChat summary
+                        summary = wechat_summarizer.generate_wechat_summary(raw_text, filename)
+                        all_summaries.append(summary)
+                        
+                        # Update UI with individual summary
+                        self.root.after(0, lambda s=summary: self.results_text.insert(tk.END, f"{s}\n{'='*50}\n\n"))
+                    else:
+                        self.root.after(0, lambda f=filename: self.results_text.insert(tk.END, f"⚠️ 无法从 {f} 提取文本\n\n"))
+                        
+                except Exception as e:
+                    error_msg = f"❌ 处理 {os.path.basename(pdf_path)} 时出错: {str(e)}\n\n"
+                    self.root.after(0, lambda msg=error_msg: self.results_text.insert(tk.END, msg))
+            
+            # Generate combined summary if multiple PDFs
+            if len(all_summaries) > 1:
+                combined_summary = wechat_summarizer.combine_summaries(all_summaries)
+                self.root.after(0, lambda: self.results_text.insert(tk.END, f"\n{'='*60}\n📋 综合总结 (适用于微信分享):\n{'='*60}\n\n{combined_summary}\n"))
+            
+            # Update UI completion
+            self.root.after(0, lambda: self.results_text.insert(tk.END, f"\n✅ 批量分析完成! 共处理 {len(pdf_files)} 个PDF文件。\n"))
+            
+        except Exception as e:
+            error_msg = f"❌ 批量分析出错: {str(e)}"
+            self.root.after(0, lambda: messagebox.showerror("Error", error_msg))
+        finally:
+            # Re-enable button and stop progress
+            self.root.after(0, lambda: self.batch_button.config(state='normal'))
+            self.root.after(0, lambda: self.batch_progress.stop())
+    
     def _send_email(self, pdf_path, summary_text):
         """Send email with PDF attachment and summary."""
         try:
@@ -285,7 +465,6 @@ class GTJAReportProcessor:
             else:
                 print("❌ 邮件发送失败！")
                 return False
-                
         except Exception as e:
             print(f"❌ 邮件发送过程中出现错误: {str(e)}")
             return False
